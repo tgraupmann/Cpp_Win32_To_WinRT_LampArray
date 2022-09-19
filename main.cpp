@@ -6,26 +6,29 @@
 #include <Windows.Foundation.h>
 #include <windows.devices.lights.h>
 #include <windows.devices.enumeration.h>
+#include <windows.ui.h>
 #include <wrl\wrappers\corewrappers.h>
 #include <wrl\client.h>
 #include <wrl\event.h>
 #include <stdio.h>
 #include <ppltasks.h>
 #include <map>
+#include <winrt\base.h>
 
 using namespace concurrency;
 using namespace ABI::Windows::Foundation;
+using namespace ABI::Windows::Foundation::Numerics;
 using namespace ABI::Windows::Devices::Enumeration;
 using namespace ABI::Windows::Devices::Lights;
+using namespace ABI::Windows::UI;
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
 using namespace std;
+using namespace winrt;
 
 #pragma comment(lib, "windowsapp")
 
-
-map<wstring, int> _gIdMap;
-int _gIndex = 0;
+map<wstring, wstring> _gIdNameMap;
 
 int main()
 {
@@ -82,6 +85,19 @@ int main()
 
 #pragma endregion class IDeviceInformationStatics
 
+#pragma region class IColorHelperStatics
+
+	ComPtr<IColorHelperStatics> colorHelperStatics;
+	hr = GetActivationFactory(HStringReference(RuntimeClass_Windows_UI_ColorHelper).Get(), &colorHelperStatics);
+	if (FAILED(hr))
+	{
+		fwprintf_s(stderr, L"Failed to get WinRT IColorHelperStatics Class! Line: %d Result: %ld\n", __LINE__, hr);
+		return -1;
+	}
+	wprintf_s(L"WinRT IColorHelperStatics Class found!\n");
+
+#pragma endregion class IColorHelperStatics
+
 #pragma region Create Device Watcher
 
 	ComPtr<IDeviceWatcher> deviceWatcher;
@@ -104,79 +120,29 @@ int main()
 	// Type define the event handler types to make the code more readable.
 	typedef __FITypedEventHandler_2_Windows__CDevices__CEnumeration__CDeviceWatcher_Windows__CDevices__CEnumeration__CDeviceInformation AddedHandler;
 
-	hr = deviceWatcher->add_Added(Callback<AddedHandler>([lampArrayStatics](IDeviceWatcher* watcher, IDeviceInformation* deviceInformation) -> HRESULT
+	hr = deviceWatcher->add_Added(Callback<AddedHandler>([](IDeviceWatcher* watcher, IDeviceInformation* deviceInformation) -> HRESULT
 		{
 			HString id;
 			HRESULT hrGetId = deviceInformation->get_Id(id.GetAddressOf());
 
-			HString name;
-			HRESULT hrGetName = deviceInformation->get_Name(name.GetAddressOf());
-
-			if (SUCCEEDED(hrGetId) && SUCCEEDED(hrGetName))
+			if (FAILED(hrGetId))
+			{
+				fwprintf_s(stderr, L"Failed to get device id!");
+			}
+			else
 			{
 				wstring wId = id.GetRawBuffer(nullptr);
 
-				int index = 0;
-				if (_gIdMap.find(wId) == _gIdMap.end())
+				HString name;
+				wstring wName;
+				HRESULT hrGetName = deviceInformation->get_Name(name.GetAddressOf());
+				if (SUCCEEDED(hrGetName))
 				{
-					index = _gIndex;
-					++_gIndex;
-					_gIdMap[wId] = index;
-				}
-				else
-				{
-					index = _gIdMap[wId];
+					wName = name.GetRawBuffer(nullptr);
 				}
 
-				IAsyncOperation<LampArray*>* operation;
-
-				lampArrayStatics->FromIdAsync(id, &operation);
-
-				ILampArray* lampArray;
-
-				// convert to await task
-				while (true)
-				{
-					HRESULT hrGetLamps = operation->GetResults(&lampArray);
-
-					if (SUCCEEDED(hrGetLamps))
-					{
-						break;
-					}
-					Sleep(1);
-				}
-
-				INT32 lampCount;
-				lampArray->get_LampCount(&lampCount);
-
-				ILampInfo* lampInfo;
-				HRESULT hrLampInfo = lampArray->GetLampInfo(index, &lampInfo);
-
-				INT32 lampIndex;
-				lampInfo->get_Index(&lampIndex);
-
-				INT32 redCount;
-				lampInfo->get_BlueLevelCount(&redCount);
-
-				INT32 greenCount;
-				lampInfo->get_BlueLevelCount(&greenCount);
-
-				INT32 blueCount;
-				lampInfo->get_BlueLevelCount(&blueCount);
-
-				INT32 gainCount;
-				lampInfo->get_GainLevelCount(&gainCount);
-
-				wprintf_s(L"Added device: name=%s id=%s Index=%i lampIndex=%d lampCount=%d redCount=%d greenCount=%d blueCount=%d gainCount=%d\n",
-					name.GetRawBuffer(nullptr),
-					id.GetRawBuffer(nullptr),
-					index,
-					lampIndex,
-					lampCount,
-					redCount,
-					greenCount,
-					blueCount,
-					gainCount);
+				_gIdNameMap[wId] = wName;
+				wprintf_s(L"Added device: id=%s name=%s\n", wId.c_str(), wName.c_str());
 			}
 
 			return S_OK;
@@ -198,13 +164,20 @@ int main()
 			HRESULT hr = deviceInformation->get_Id(id.GetAddressOf());
 			if (SUCCEEDED(hr))
 			{
-				wprintf_s(L"Removed device: %s\n", id.GetRawBuffer(nullptr));
+				wstring wId = id.GetRawBuffer(nullptr);
+				wprintf_s(L"Removed device: %s\n", wId.c_str());
+				if (_gIdNameMap.find(wId) != _gIdNameMap.end())
+				{
+					_gIdNameMap.erase(wId);
+				}
 			}
 			return S_OK;
 
 		}).Get(), &removedToken);
 
 #pragma endregion Assign Device Watcher Removed Event
+
+	wprintf(L"Detect connected devices...\n");
 
 #pragma region Start Device Watcher
 
@@ -217,6 +190,117 @@ int main()
 	wprintf_s(L"WinRT Started DeviceWatcher!\n");
 
 #pragma endregion Start Device Watcher
+
+	Sleep(100); // wait to set colors
+	wprintf(L"Waited for devices.\n");
+
+	INT32 index = 0;
+	for (map<wstring, wstring>::iterator it = _gIdNameMap.begin(); it != _gIdNameMap.end(); ++it)
+	{
+		wstring wId = it->first;
+		wstring wName = it->second;
+
+		wprintf_s(L"Device %d id=%s name=%s...\n", index, wId.c_str(), wName.c_str());
+		++index;
+
+		hstring hId{ wId.c_str() };
+		HString id;
+		HRESULT hrCopy = id.Set(wId.c_str());
+		if (FAILED(hrCopy))
+		{
+			fwprintf_s(stderr, L"Failed to copy device id=%s\n", wId.c_str());
+			continue;
+		}
+
+		// convert to await task
+		IAsyncOperation<DeviceInformation*>* opGetDeviceInformation;
+		deviceInformationStatics->CreateFromIdAsync(id, &opGetDeviceInformation);
+		IDeviceInformation* deviceInformation = nullptr;
+		while (true)
+		{
+			HRESULT hr = opGetDeviceInformation->GetResults(&deviceInformation);
+			if (SUCCEEDED(hr))
+			{
+				break;
+			}
+			Sleep(1);
+		}
+
+		if (!deviceInformation)
+		{
+			continue;
+		}
+
+		IAsyncOperation<LampArray*>* operation;
+		lampArrayStatics->FromIdAsync(id, &operation);
+
+		// convert to await task
+		ILampArray* lampArray = nullptr;
+		while (true)
+		{
+			HRESULT hrGetLamps = operation->GetResults(&lampArray);
+
+			if (SUCCEEDED(hrGetLamps))
+			{
+				break;
+			}
+			Sleep(1);
+		}
+
+		INT32 lampCount;
+		lampArray->get_LampCount(&lampCount);
+
+		wprintf_s(L"Added device: name=%s lampCount=%d id=%s\n",
+			wName.c_str(),
+			lampCount,
+			wId.c_str());
+
+		Color colorClear;
+		Color colorRed;
+		if (FAILED(colorHelperStatics->FromArgb(0, 0, 0, 0, &colorClear)) ||
+			FAILED(colorHelperStatics->FromArgb(255, 255, 0, 0, &colorRed)))
+		{
+			fwprintf_s(stderr, L"Failed to create color!\n");
+		}
+		else
+		{
+			HRESULT hrSetColor = lampArray->SetColor(colorClear);
+			if (FAILED(hrSetColor))
+			{
+				fwprintf_s(stderr, L"Failed to set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+			}
+			else
+			{
+				wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+
+				for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+				{
+					ILampInfo* lampInfo;
+					HRESULT hrLampInfo = lampArray->GetLampInfo(lamp, &lampInfo);
+					if (FAILED(hrLampInfo))
+					{
+						fwprintf_s(stderr, L"Failed to get lampInfo: name=%s lamp=%d\n", wName.c_str(), lamp);
+					}
+					else
+					{
+						Vector3 vector3;
+						lampInfo->get_Position(&vector3);
+						//wprintf_s(L"Lamp %d: position x=%f y=%f z=%f\n", lamp, vector3.X, vector3.Y, vector3.Z);
+					}
+
+					HRESULT hrSetColor = lampArray->SetColorForIndex(lamp, colorRed);
+					if (FAILED(hrSetColor))
+					{
+						fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
+					}
+					else
+					{
+						wprintf_s(L"Set red color: name=%s lamp=%d\n", wName.c_str(), lamp);
+					}
+				}
+			}
+		}
+	}
 
 	Sleep(5000); // wait for events before exiting
 
