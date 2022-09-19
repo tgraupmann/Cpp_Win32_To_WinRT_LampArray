@@ -14,6 +14,7 @@
 #include <ppltasks.h>
 #include <map>
 #include <winrt\base.h>
+#include "StaticClassesWinRT.h"
 
 using namespace concurrency;
 using namespace ABI::Windows::Foundation;
@@ -30,170 +31,11 @@ using namespace winrt;
 
 map<wstring, wstring> _gIdNameMap;
 
-int main()
+void SetAllDevicesToColors(
+	ComPtr<IDeviceInformationStatics> deviceInformationStatics,
+	ComPtr<ILampArrayStatics> lampArrayStatics,
+	ComPtr<IColorHelperStatics> colorHelperStatics)
 {
-
-#pragma region Initialize WinRT
-
-	// Initialize the Windows Runtime.
-	RoInitializeWrapper initialize(RO_INIT_MULTITHREADED);
-	if (FAILED(initialize))
-	{
-		fwprintf_s(stderr, L"Failed to initialize WinRT! Line: %d Result: %ld\n", __LINE__, (HRESULT)initialize);
-		return -1;
-	}
-	wprintf_s(L"WinRT initialzed!\n");
-
-#pragma endregion Initialize WinRT
-
-#pragma region class ILampArrayStatics
-
-	ComPtr<ILampArrayStatics> lampArrayStatics;
-	HRESULT hr = GetActivationFactory(HStringReference(RuntimeClass_Windows_Devices_Lights_LampArray).Get(), &lampArrayStatics);
-	if (FAILED(hr))
-	{
-		fwprintf_s(stderr, L"Failed to get WinRT ILampArrayStatics Class! Line: %d Result: %ld\n", __LINE__, hr);
-		return -1;
-	}
-	wprintf_s(L"WinRT ILampArrayStatics Class found!\n");
-
-#pragma endregion class ILampArrayStatics
-
-#pragma region Get Device Selector
-
-	HString deviceSelector;
-	hr = lampArrayStatics->GetDeviceSelector(deviceSelector.GetAddressOf());
-	if (FAILED(hr))
-	{
-		fwprintf_s(stderr, L"Failed to get WinRT LampArray DeviceSelector! Line: %d Result: %ld\n", __LINE__, hr);
-		return -1;
-	}
-	wprintf_s(L"WinRT LampArray DeviceSelector:%s!\n", deviceSelector.GetRawBuffer(nullptr));
-
-#pragma endregion Get Device Selector
-
-#pragma region class IDeviceInformationStatics
-
-	ComPtr<IDeviceInformationStatics> deviceInformationStatics;
-	hr = GetActivationFactory(HStringReference(RuntimeClass_Windows_Devices_Enumeration_DeviceInformation).Get(), &deviceInformationStatics);
-	if (FAILED(hr))
-	{
-		fwprintf_s(stderr, L"Failed to get WinRT IDeviceInformationStatics Class! Line: %d Result: %ld\n", __LINE__, hr);
-		return -1;
-	}
-	wprintf_s(L"WinRT IDeviceInformationStatics Class found!\n");
-
-#pragma endregion class IDeviceInformationStatics
-
-#pragma region class IColorHelperStatics
-
-	ComPtr<IColorHelperStatics> colorHelperStatics;
-	hr = GetActivationFactory(HStringReference(RuntimeClass_Windows_UI_ColorHelper).Get(), &colorHelperStatics);
-	if (FAILED(hr))
-	{
-		fwprintf_s(stderr, L"Failed to get WinRT IColorHelperStatics Class! Line: %d Result: %ld\n", __LINE__, hr);
-		return -1;
-	}
-	wprintf_s(L"WinRT IColorHelperStatics Class found!\n");
-
-#pragma endregion class IColorHelperStatics
-
-#pragma region Create Device Watcher
-
-	ComPtr<IDeviceWatcher> deviceWatcher;
-	hr = deviceInformationStatics->CreateWatcherAqsFilter(deviceSelector, &deviceWatcher);
-	if (FAILED(hr))
-	{
-		fwprintf_s(stderr, L"Failed to CreateWatcher! Line: %d Result: %ld\n", __LINE__, hr);
-		return -1;
-	}
-	wprintf_s(L"WinRT Created DeviceWatcher!\n");
-
-#pragma endregion Create Device Watcher
-
-	// Ref: WRL Events - https://learn.microsoft.com/en-us/cpp/cppcx/wrl/how-to-handle-events-using-wrl
-	
-#pragma region Assign Device Watcher Added Event
-
-	EventRegistrationToken addedToken;
-
-	// Type define the event handler types to make the code more readable.
-	typedef __FITypedEventHandler_2_Windows__CDevices__CEnumeration__CDeviceWatcher_Windows__CDevices__CEnumeration__CDeviceInformation AddedHandler;
-
-	hr = deviceWatcher->add_Added(Callback<AddedHandler>([](IDeviceWatcher* watcher, IDeviceInformation* deviceInformation) -> HRESULT
-		{
-			HString id;
-			HRESULT hrGetId = deviceInformation->get_Id(id.GetAddressOf());
-
-			if (FAILED(hrGetId))
-			{
-				fwprintf_s(stderr, L"Failed to get device id!");
-			}
-			else
-			{
-				wstring wId = id.GetRawBuffer(nullptr);
-
-				HString name;
-				wstring wName;
-				HRESULT hrGetName = deviceInformation->get_Name(name.GetAddressOf());
-				if (SUCCEEDED(hrGetName))
-				{
-					wName = name.GetRawBuffer(nullptr);
-				}
-
-				_gIdNameMap[wId] = wName;
-				wprintf_s(L"Added device: id=%s name=%s\n", wId.c_str(), wName.c_str());
-			}
-
-			return S_OK;
-
-		}).Get(), &addedToken);
-
-#pragma endregion Assign Device Watcher Added Event
-
-#pragma region Assign Device Watcher Removed Event
-
-	EventRegistrationToken removedToken;
-
-	// Type define the event handler types to make the code more readable.
-	typedef __FITypedEventHandler_2_Windows__CDevices__CEnumeration__CDeviceWatcher_Windows__CDevices__CEnumeration__CDeviceInformationUpdate RemovedHandler;
-
-	hr = deviceWatcher->add_Removed(Callback<RemovedHandler>([](IDeviceWatcher* watcher, IDeviceInformationUpdate* deviceInformation) -> HRESULT
-		{
-			HString id;
-			HRESULT hr = deviceInformation->get_Id(id.GetAddressOf());
-			if (SUCCEEDED(hr))
-			{
-				wstring wId = id.GetRawBuffer(nullptr);
-				wprintf_s(L"Removed device: %s\n", wId.c_str());
-				if (_gIdNameMap.find(wId) != _gIdNameMap.end())
-				{
-					_gIdNameMap.erase(wId);
-				}
-			}
-			return S_OK;
-
-		}).Get(), &removedToken);
-
-#pragma endregion Assign Device Watcher Removed Event
-
-	wprintf(L"Detect connected devices...\n");
-
-#pragma region Start Device Watcher
-
-	hr = deviceWatcher->Start();
-	if (FAILED(hr))
-	{
-		fwprintf_s(stderr, L"Failed to Start DeviceWatcher! Line: %d Result: %ld\n", __LINE__, hr);
-		return -1;
-	}
-	wprintf_s(L"WinRT Started DeviceWatcher!\n");
-
-#pragma endregion Start Device Watcher
-
-	Sleep(100); // wait to set colors
-	wprintf(L"Waited for devices.\n");
-
 	INT32 index = 0;
 	for (map<wstring, wstring>::iterator it = _gIdNameMap.begin(); it != _gIdNameMap.end(); ++it)
 	{
@@ -231,14 +73,13 @@ int main()
 			continue;
 		}
 
-		IAsyncOperation<LampArray*>* operation;
-		lampArrayStatics->FromIdAsync(id, &operation);
-
 		// convert to await task
+		IAsyncOperation<LampArray*>* opGetLampArray;
+		lampArrayStatics->FromIdAsync(id, &opGetLampArray);
 		ILampArray* lampArray = nullptr;
 		while (true)
 		{
-			HRESULT hrGetLamps = operation->GetResults(&lampArray);
+			HRESULT hrGetLamps = opGetLampArray->GetResults(&lampArray);
 
 			if (SUCCEEDED(hrGetLamps))
 			{
@@ -301,6 +142,150 @@ int main()
 			}
 		}
 	}
+}
+
+int main()
+{
+	// Initialize the Windows Runtime.
+	RoInitializeWrapper initialize(RO_INIT_MULTITHREADED);
+	if (FAILED(initialize))
+	{
+		fwprintf_s(stderr, L"Failed to initialize WinRT! Line: %d Result: %ld\n", __LINE__, (HRESULT)initialize);
+		return -1;
+	}
+	wprintf_s(L"WinRT initialzed!\n");
+
+	ComPtr<IDeviceInformationStatics> deviceInformationStatics;
+	if (!StaticClassesWinRT::FindClassIDeviceInformationStatics(deviceInformationStatics))
+	{
+		return -1;
+	}
+
+	ComPtr<ILampArrayStatics> lampArrayStatics;
+	if (!StaticClassesWinRT::FindClassILampArrayStatics(lampArrayStatics))
+	{
+		return -1;
+	}
+
+	ComPtr<IColorHelperStatics> colorHelperStatics;
+	if (!StaticClassesWinRT::FindClassIColorHelperStatics(colorHelperStatics))
+	{
+		return -1;
+	}
+
+#pragma region Get Device Selector
+
+	HString deviceSelector;
+	HRESULT hr = lampArrayStatics->GetDeviceSelector(deviceSelector.GetAddressOf());
+	if (FAILED(hr))
+	{
+		fwprintf_s(stderr, L"Failed to get WinRT LampArray DeviceSelector! Line: %d Result: %ld\n", __LINE__, hr);
+		return -1;
+	}
+	wprintf_s(L"WinRT LampArray DeviceSelector:%s!\n", deviceSelector.GetRawBuffer(nullptr));
+
+#pragma endregion Get Device Selector
+
+#pragma region Create Device Watcher
+
+	ComPtr<IDeviceWatcher> deviceWatcher;
+	hr = deviceInformationStatics->CreateWatcherAqsFilter(deviceSelector, &deviceWatcher);
+	if (FAILED(hr))
+	{
+		fwprintf_s(stderr, L"Failed to CreateWatcher! Line: %d Result: %ld\n", __LINE__, hr);
+		return -1;
+	}
+	wprintf_s(L"WinRT Created DeviceWatcher!\n");
+
+#pragma endregion Create Device Watcher
+
+	// Ref: WRL Events - https://learn.microsoft.com/en-us/cpp/cppcx/wrl/how-to-handle-events-using-wrl
+	
+#pragma region Assign Device Watcher Added Event
+
+	EventRegistrationToken addedToken;
+
+	// Type define the event handler types to make the code more readable.
+	typedef ITypedEventHandler<DeviceWatcher*, DeviceInformation*> AddedHandler;
+
+	hr = deviceWatcher->add_Added(Callback<AddedHandler>([](IDeviceWatcher* watcher, IDeviceInformation* deviceInformation) -> HRESULT
+		{
+			HString id;
+			HRESULT hrGetId = deviceInformation->get_Id(id.GetAddressOf());
+
+			if (FAILED(hrGetId))
+			{
+				fwprintf_s(stderr, L"Failed to get device id!");
+			}
+			else
+			{
+				wstring wId = id.GetRawBuffer(nullptr);
+
+				HString name;
+				wstring wName;
+				HRESULT hrGetName = deviceInformation->get_Name(name.GetAddressOf());
+				if (SUCCEEDED(hrGetName))
+				{
+					wName = name.GetRawBuffer(nullptr);
+				}
+
+				_gIdNameMap[wId] = wName;
+				wprintf_s(L"Added device: id=%s name=%s\n", wId.c_str(), wName.c_str());
+			}
+
+			return S_OK;
+
+		}).Get(), &addedToken);
+
+#pragma endregion Assign Device Watcher Added Event
+
+#pragma region Assign Device Watcher Removed Event
+
+	EventRegistrationToken removedToken;
+
+	// Type define the event handler types to make the code more readable.
+	typedef ITypedEventHandler<DeviceWatcher*, DeviceInformationUpdate*> RemovedHandler;
+
+	hr = deviceWatcher->add_Removed(Callback<RemovedHandler>([](IDeviceWatcher* watcher, IDeviceInformationUpdate* deviceInformation) -> HRESULT
+		{
+			HString id;
+			HRESULT hr = deviceInformation->get_Id(id.GetAddressOf());
+			if (SUCCEEDED(hr))
+			{
+				wstring wId = id.GetRawBuffer(nullptr);
+				wprintf_s(L"Removed device: %s\n", wId.c_str());
+				if (_gIdNameMap.find(wId) != _gIdNameMap.end())
+				{
+					_gIdNameMap.erase(wId);
+				}
+			}
+			return S_OK;
+
+		}).Get(), &removedToken);
+
+#pragma endregion Assign Device Watcher Removed Event
+
+	wprintf(L"Detect connected devices...\n");
+
+#pragma region Start Device Watcher
+
+	hr = deviceWatcher->Start();
+	if (FAILED(hr))
+	{
+		fwprintf_s(stderr, L"Failed to Start DeviceWatcher! Line: %d Result: %ld\n", __LINE__, hr);
+		return -1;
+	}
+	wprintf_s(L"WinRT Started DeviceWatcher!\n");
+
+#pragma endregion Start Device Watcher
+
+	Sleep(100); // wait to set colors
+	wprintf(L"Waited for devices.\n");
+
+	SetAllDevicesToColors(
+		deviceInformationStatics,
+		lampArrayStatics,
+		colorHelperStatics);
 
 	Sleep(5000); // wait for events before exiting
 
