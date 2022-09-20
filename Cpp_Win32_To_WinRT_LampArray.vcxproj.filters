@@ -18,12 +18,12 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="StaticClassesWinRT.cpp">
+    <ClCompile Include="UtilClassesWinRT.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="StaticClassesWinRT.h">
+    <ClInclude Include="UtilClassesWinRT.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,4 +1,4 @@
-#include "StaticClassesWinRT.h"
+#include "UtilClassesWinRT.h"
 
 #include <Windows.Foundation.h>
 #include <windows.devices.lights.h>
@@ -17,7 +17,7 @@ using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
 
 
-bool StaticClassesWinRT::FindClassIDeviceInformationStatics(ComPtr<IDeviceInformationStatics>& deviceInformationStatics)
+bool UtilClassesWinRT::FindClassIDeviceInformationStatics(ComPtr<IDeviceInformationStatics>& deviceInformationStatics)
 {
 
 #pragma region class IDeviceInformationStatics
@@ -35,7 +35,7 @@ bool StaticClassesWinRT::FindClassIDeviceInformationStatics(ComPtr<IDeviceInform
 
 }
 
-bool StaticClassesWinRT::FindClassILampArrayStatics(ComPtr<ILampArrayStatics>& lampArrayStatics)
+bool UtilClassesWinRT::FindClassILampArrayStatics(ComPtr<ILampArrayStatics>& lampArrayStatics)
 {
 
 #pragma region class ILampArrayStatics
@@ -53,7 +53,7 @@ bool StaticClassesWinRT::FindClassILampArrayStatics(ComPtr<ILampArrayStatics>& l
 
 }
 
-bool StaticClassesWinRT::FindClassILampArrayEffectPlaylistStatics(ComPtr<ILampArrayEffectPlaylistStatics>& lampArrayEffectPlaylistStatics)
+bool UtilClassesWinRT::FindClassILampArrayEffectPlaylistStatics(ComPtr<ILampArrayEffectPlaylistStatics>& lampArrayEffectPlaylistStatics)
 {
 
 #pragma region class ILampArrayEffectPlaylistStatics
@@ -71,7 +71,24 @@ bool StaticClassesWinRT::FindClassILampArrayEffectPlaylistStatics(ComPtr<ILampAr
 
 }
 
-bool StaticClassesWinRT::FindClassILampArrayCustomEffectFactory(ComPtr<ILampArrayCustomEffectFactory>& lampArrayCustomEffectFactory)
+bool UtilClassesWinRT::ActivateInstanceILampArrayEffectPlaylist(
+	Microsoft::WRL::ComPtr<ABI::Windows::Devices::Lights::Effects::ILampArrayEffectPlaylist>& lampArrayEffectPlaylist)
+{
+#pragma region class ILampArrayEffectPlaylist
+
+	HRESULT hr = ActivateInstance(HStringReference(RuntimeClass_Windows_Devices_Lights_Effects_LampArrayEffectPlaylist).Get(), &lampArrayEffectPlaylist);
+	if (FAILED(hr))
+	{
+		fwprintf_s(stderr, L"Failed to instantiate WinRT ILampArrayEffectPlaylist class! Line: %d Result: %ld\n", __LINE__, hr);
+		return false;
+	}
+	//wprintf_s(L"WinRT ILampArrayEffectPlaylist class found!\n");
+	return true;
+
+#pragma endregion class ILampArrayEffectPlaylist
+}
+
+bool UtilClassesWinRT::FindClassILampArrayCustomEffectFactory(ComPtr<ILampArrayCustomEffectFactory>& lampArrayCustomEffectFactory)
 {
 
 #pragma region class ILampArrayCustomEffectFactory
@@ -89,7 +106,7 @@ bool StaticClassesWinRT::FindClassILampArrayCustomEffectFactory(ComPtr<ILampArra
 
 }
 
-bool StaticClassesWinRT::FindClassIColorHelperStatics(ComPtr<IColorHelperStatics>& colorHelperStatics)
+bool UtilClassesWinRT::FindClassIColorHelperStatics(ComPtr<IColorHelperStatics>& colorHelperStatics)
 {
 
 #pragma region class IColorHelperStatics

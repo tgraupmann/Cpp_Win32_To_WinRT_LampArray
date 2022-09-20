@@ -7,7 +7,7 @@
 #include <windows.ui.h>
 #include <wrl\client.h>
 
-class StaticClassesWinRT
+class UtilClassesWinRT
 {
 public:
 
@@ -19,6 +19,9 @@ public:
 
 	static bool FindClassILampArrayEffectPlaylistStatics(
 		Microsoft::WRL::ComPtr<ABI::Windows::Devices::Lights::Effects::ILampArrayEffectPlaylistStatics>& lampArrayEffectPlaylistStatics);
+
+	static bool ActivateInstanceILampArrayEffectPlaylist(
+		Microsoft::WRL::ComPtr<ABI::Windows::Devices::Lights::Effects::ILampArrayEffectPlaylist>& lampArrayEffectPlaylist);
 
 	static bool FindClassILampArrayCustomEffectFactory(
 		Microsoft::WRL::ComPtr<ABI::Windows::Devices::Lights::Effects::ILampArrayCustomEffectFactory>& lampArrayCustomEffectFactory);
