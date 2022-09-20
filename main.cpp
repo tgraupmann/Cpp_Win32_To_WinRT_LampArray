@@ -49,7 +49,7 @@ void GetDeviceInformation(ComPtr<IDeviceInformationStatics>& deviceInformationSt
 	IDeviceInformation** deviceInformation)
 {
 	IAsyncOperation<DeviceInformation*>* operation;
-	deviceInformationStatics->CreateFromIdAsync(id, &operation);
+	deviceInformationStatics->CreateFromIdAsync(id.Get(), &operation);
 	task<void> task([operation, &deviceInformation]()
 		{
 			HRESULT hr;
@@ -67,7 +67,7 @@ void GetLampArray(ComPtr<ILampArrayStatics>& lampArrayStatics,
 	ILampArray** lampArray)
 {
 	IAsyncOperation<LampArray*>* operation;
-	lampArrayStatics->FromIdAsync(id, &operation);
+	lampArrayStatics->FromIdAsync(id.Get(), &operation);
 	task<void> task([operation, &lampArray]()
 		{
 			HRESULT hr;
@@ -466,7 +466,7 @@ int main()
 #pragma region Create Device Watcher
 
 	ComPtr<IDeviceWatcher> deviceWatcher;
-	hr = deviceInformationStatics->CreateWatcherAqsFilter(deviceSelector, &deviceWatcher);
+	hr = deviceInformationStatics->CreateWatcherAqsFilter(deviceSelector.Get(), &deviceWatcher);
 	if (FAILED(hr))
 	{
 		fwprintf_s(stderr, L"Failed to CreateWatcher! Line: %d Result: %ld\n", __LINE__, hr);
