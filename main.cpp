@@ -123,8 +123,51 @@ void SetAllDevicesToColors(
 					lampIndexes[lamp] = lamp;
 				}
 
-				ILampArrayCustomEffect* customEffect;				
-				HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, lampIndexes, &customEffect);
+				ILampArrayCustomEffect* customEffect;
+				HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, lampIndexes, &customEffect);				
+				if (FAILED(hrCustomEffect))
+				{
+					fwprintf_s(stderr, L"Failed to create custom effect name=%s!\n", wName.c_str());
+				}
+				else
+				{
+					TimeSpan duration;
+					duration.Duration = 2147483647; //TimeSpan.MaxValue
+					if (FAILED(customEffect->put_Duration(duration)))
+					{
+						fwprintf_s(stderr, L"Failed to set custom effect duration!\n");
+					}
+					TimeSpan updateInterval;
+					updateInterval.Duration = 33; //TimeSpan.FromMilliseconds
+					if (FAILED(customEffect->put_UpdateInterval(updateInterval)))
+					{
+						fwprintf_s(stderr, L"Failed to set custom effect update interval !\n");
+					}
+
+					EventRegistrationToken updatedToken;
+
+					// Type define the event handler types to make the code more readable.
+					typedef ITypedEventHandler<LampArrayCustomEffect*, LampArrayUpdateRequestedEventArgs*> UpdateHandler;
+
+					HRESULT hrAddUpdate = customEffect->add_UpdateRequested(Callback<UpdateHandler>([lampCount, colorRed, wName](ILampArrayCustomEffect* customEffect, ILampArrayUpdateRequestedEventArgs* args) -> HRESULT
+						{
+							for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+							{
+								HRESULT hrSetColor = args->SetColorForIndex(lamp, colorRed);
+								if (FAILED(hrSetColor))
+								{
+									fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
+								}
+								else
+								{
+									wprintf_s(L"Set red color: name=%s lamp=%d\n", wName.c_str(), lamp);
+								}
+							}
+							
+							return S_OK;
+
+						}).Get(), &updatedToken);
+				}
 
 				delete[lampCount] lampIndexes;
 
@@ -141,16 +184,6 @@ void SetAllDevicesToColors(
 						Vector3 vector3;
 						lampInfo->get_Position(&vector3);
 						//wprintf_s(L"Lamp %d: position x=%f y=%f z=%f\n", lamp, vector3.X, vector3.Y, vector3.Z);
-					}
-
-					HRESULT hrSetColor = lampArray->SetColorForIndex(lamp, colorRed);
-					if (FAILED(hrSetColor))
-					{
-						fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
-					}
-					else
-					{
-						//wprintf_s(L"Set red color: name=%s lamp=%d\n", wName.c_str(), lamp);
 					}
 				}
 			}
