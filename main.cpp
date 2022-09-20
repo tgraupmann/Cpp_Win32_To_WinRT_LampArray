@@ -100,12 +100,6 @@ void SetAllDevicesToColors(
 		INT32 lampCount;
 		lampArray->get_LampCount(&lampCount);
 
-		INT32* lampIndexes = new INT32[lampCount];
-		for (INT32 lamp = 0; lamp < lampCount; ++lamp)
-		{
-			lampIndexes[lamp] = lamp;
-		}
-
 		wprintf_s(L"Added device: name=%s lampCount=%d id=%s\n",
 			wName.c_str(),
 			lampCount,
@@ -128,6 +122,16 @@ void SetAllDevicesToColors(
 			}
 		}
 
+#pragma region Prepare lamp indices
+
+		vector<INT32> lampIndices;
+		for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+		{
+			lampIndices.push_back(lamp);
+		}
+
+#pragma endregion Prepare lamp indices
+
 #pragma region Create Playlist
 
 		ComPtr<ILampArrayEffectPlaylist> lampArrayEffectPlaylist;
@@ -146,12 +150,12 @@ void SetAllDevicesToColors(
 			if (FAILED(colorHelperStatics->FromArgb(0, 0, 0, 0, &colorClear)) ||
 				FAILED(colorHelperStatics->FromArgb(255, 255, 0, 0, &colorRed)))
 			{
-				fwprintf_s(stderr, L"Failed to create color!\n");
+				fwprintf_s(stderr, L"Failed to create colors!\n");
 			}
 			else
 			{
 				ILampArrayCustomEffect* customEffect;
-				HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, lampIndexes, &customEffect);
+				HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, &lampIndices[0], &customEffect);
 				if (FAILED(hrCustomEffect))
 				{
 					fwprintf_s(stderr, L"Failed to create custom effect name=%s!\n", wName.c_str());
@@ -211,6 +215,11 @@ void SetAllDevicesToColors(
 							return S_OK;
 
 						}).Get(), &updatedToken);
+
+					if (FAILED(hrAddUpdate)) {
+						fwprintf_s(stderr, L"Failed to set UpdateRequested event: name=%s\n", wName.c_str());
+					}
+
 				}
 
 				HRESULT hrAppend = lampArrayEffectPlaylist->Append((ILampArrayEffect*)customEffect);
@@ -234,8 +243,6 @@ void SetAllDevicesToColors(
 				}
 			}
 		}
-
-		delete[lampCount] lampIndexes;
 	}
 }
 
