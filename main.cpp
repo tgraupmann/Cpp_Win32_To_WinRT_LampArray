@@ -88,6 +88,13 @@ void SetAllDevicesToColors(
 		return;
 	}
 
+	Color colorWhite;
+	if (FAILED(colorHelperStatics->FromArgb(255, 255, 255, 255, &colorWhite)))
+	{
+		fwprintf_s(stderr, L"Failed to create white color!\n");
+		return;
+	}
+
 	Color colorRed;
 	if (FAILED(colorHelperStatics->FromArgb(255, 255, 0, 0, &colorRed)))
 	{
@@ -153,7 +160,8 @@ void SetAllDevicesToColors(
 			lampCount,
 			wId.c_str());
 
-		// get lamp info positions
+#pragma region Get lamp info positions
+
 		for (INT32 lamp = 0; lamp < lampCount; ++lamp)
 		{
 			ILampInfo* lampInfo;
@@ -170,6 +178,8 @@ void SetAllDevicesToColors(
 			}
 		}
 
+#pragma endregion Get lamp info positions
+
 #pragma region Prepare lamp indices
 
 		vector<INT32> lampIndices;
@@ -179,6 +189,20 @@ void SetAllDevicesToColors(
 		}
 
 #pragma endregion Prepare lamp indices
+
+#pragma region Show color on the device
+
+		if (FAILED(lampArray->SetColor(colorWhite)))
+		{
+			fwprintf_s(stderr, L"Failed to set color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+		}
+
+		if (FAILED(lampArray->SetSingleColorForIndices(colorWhite, lampCount, &lampIndices[0])))
+		{
+			fwprintf_s(stderr, L"Failed to set color for indices: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+		}
+
+#pragma endregion Show color on the device
 
 #pragma region Create Playlist
 
@@ -249,17 +273,11 @@ void SetAllDevicesToColors(
 
 		HRESULT hrAddUpdate = customEffect->add_UpdateRequested(Callback<UpdateHandler>([lampArrayIndex, lampArrayEffectPlaylist, customEffect, lampCount, colorClear, colorRed, wName](ILampArrayCustomEffect* customEffect, ILampArrayUpdateRequestedEventArgs* args) -> HRESULT
 			{
-				/*
-				HRESULT hrSetColor = args->SetColor(colorClear);
-				if (FAILED(hrSetColor))
+				if (FAILED(args->SetColor(colorClear)))
 				{
 					fwprintf_s(stderr, L"Failed to set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
 				}
-				else
-				{
-					//wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
-				}
-				*/
+				//wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
 
 				for (INT32 lamp = 0; lamp < lampCount; ++lamp)
 				{
@@ -268,12 +286,9 @@ void SetAllDevicesToColors(
 					{
 						fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
 					}
-					else
+					if (lamp == 0) // log just the first element per device
 					{
-						if (lamp == 0)
-						{
-							wprintf_s(L"Device %d: set red color: name=%s lamp=%d of %d\n", lampArrayIndex, wName.c_str(), lamp, lampCount);
-						}
+						wprintf_s(L"Device %d: set red color: name=%s lamp=%d of %d\n", lampArrayIndex, wName.c_str(), lamp, lampCount);
 					}
 				}
 
