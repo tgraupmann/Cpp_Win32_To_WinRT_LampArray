@@ -33,7 +33,16 @@ using namespace winrt;
 
 #pragma comment(lib, "windowsapp")
 
-map<wstring, wstring> _gIdNameMap;
+class MetaLampInfo
+{
+public:
+	wstring _mId;
+	wstring _mName;
+	INT32 _mLampCount;
+	vector<INT32> _mIndexes;
+};
+
+map<wstring, MetaLampInfo> _gConnectedDevices;
 
 void GetDeviceInformation(ComPtr<IDeviceInformationStatics>& deviceInformationStatics,
 	const HString& id,
@@ -107,12 +116,13 @@ void SetAllDevicesToColors(
 	// loop through all the connected lighting devices
 
 	INT32 lampArrayIndex = 0;
-	for (map<wstring, wstring>::iterator it = _gIdNameMap.begin(); it != _gIdNameMap.end(); ++it, ++lampArrayIndex)
+	for (map<wstring, MetaLampInfo>::iterator it = _gConnectedDevices.begin(); it != _gConnectedDevices.end(); ++it, ++lampArrayIndex)
 	{
 		wstring wId = it->first;
-		wstring wName = it->second;
 
-		wprintf_s(L"Device %d id=%s name=%s...\n", lampArrayIndex, wId.c_str(), wName.c_str());
+		MetaLampInfo& meta = it->second;
+
+		wprintf_s(L"Device %d id=%s name=%s...\n", lampArrayIndex, wId.c_str(), meta._mName.c_str());
 
 		hstring hId{ wId.c_str() };
 		HString id;
@@ -154,11 +164,10 @@ void SetAllDevicesToColors(
 
 #pragma region Get lamp count
 
-		INT32 lampCount;
-		if (FAILED(lampArray->get_LampCount(&lampCount)))
+		if (FAILED(lampArray->get_LampCount(&meta._mLampCount)))
 		{
 			wprintf_s(L"Failed to get lamp count: name=%s id=%s\n",
-				wName.c_str(),
+				meta._mName.c_str(),
 				wId.c_str());
 			continue;
 		}
@@ -171,7 +180,7 @@ void SetAllDevicesToColors(
 		if (FAILED(lampArray->get_MinUpdateInterval(&minUpdateInterval)))
 		{
 			wprintf_s(L"Failed to get min update interval: name=%s id=%s\n",
-				wName.c_str(),
+				meta._mName.c_str(),
 				wId.c_str());
 			continue;
 		}
@@ -184,7 +193,7 @@ void SetAllDevicesToColors(
 		if (FAILED(lampArray->get_IsConnected(&isConnected)))
 		{
 			wprintf_s(L"Failed to get isConnected: name=%s id=%s\n",
-				wName.c_str(),
+				meta._mName.c_str(),
 				wId.c_str());
 			continue;
 		}
@@ -197,7 +206,7 @@ void SetAllDevicesToColors(
 		if (FAILED(lampArray->get_IsEnabled(&isEnabled)))
 		{
 			wprintf_s(L"Failed to get isEnabled: name=%s id=%s\n",
-				wName.c_str(),
+				meta._mName.c_str(),
 				wId.c_str());
 			continue;
 		}
@@ -205,21 +214,21 @@ void SetAllDevicesToColors(
 #pragma endregion Get enabled
 
 		wprintf_s(L"Added device: name=%s isEnabled=%s isConnected=%s lampCount=%d id=%s\n",
-			wName.c_str(),
+			meta._mName.c_str(),
 			isEnabled ? L"true" : L"false",
 			isConnected ? L"true" : L"false",
-			lampCount,
+			meta._mLampCount,
 			wId.c_str());
 
 #pragma region Get lamp info positions
 
-		for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+		for (INT32 lamp = 0; lamp < meta._mLampCount; ++lamp)
 		{
 			ILampInfo* lampInfo;
 			HRESULT hrLampInfo = lampArray->GetLampInfo(lamp, &lampInfo);
 			if (FAILED(hrLampInfo))
 			{
-				fwprintf_s(stderr, L"Failed to get lampInfo: name=%s lamp=%d\n", wName.c_str(), lamp);
+				fwprintf_s(stderr, L"Failed to get lampInfo: name=%s lamp=%d\n", meta._mName.c_str(), lamp);
 			}
 			else
 			{
@@ -233,10 +242,10 @@ void SetAllDevicesToColors(
 
 #pragma region Prepare lamp indices
 
-		vector<INT32> lampIndices;
-		for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+		meta._mIndexes.clear();
+		for (INT32 lamp = 0; lamp < meta._mLampCount; ++lamp)
 		{
-			lampIndices.push_back(lamp);
+			meta._mIndexes.push_back(lamp);
 		}
 
 #pragma endregion Prepare lamp indices
@@ -245,12 +254,12 @@ void SetAllDevicesToColors(
 
 		if (FAILED(lampArray->SetColor(colorWhite)))
 		{
-			fwprintf_s(stderr, L"Failed to set color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+			fwprintf_s(stderr, L"Failed to set color: name=%s lampCount=%d\n", meta._mName.c_str(), meta._mLampCount);
 		}
 
-		if (FAILED(lampArray->SetSingleColorForIndices(colorWhite, lampCount, &lampIndices[0])))
+		if (FAILED(lampArray->SetSingleColorForIndices(colorWhite, meta._mLampCount, &meta._mIndexes[0])))
 		{
-			fwprintf_s(stderr, L"Failed to set color for indices: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+			fwprintf_s(stderr, L"Failed to set color for indices: name=%s lampCount=%d\n", meta._mName.c_str(), meta._mLampCount);
 		}
 
 #pragma endregion Show color on the device
@@ -260,7 +269,7 @@ void SetAllDevicesToColors(
 		ComPtr<ILampArrayEffectPlaylist> lampArrayEffectPlaylist;
 		if (!UtilClassesWinRT::ActivateInstanceILampArrayEffectPlaylist(lampArrayEffectPlaylist))
 		{
-			fwprintf_s(stderr, L"Failed to create playlist: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+			fwprintf_s(stderr, L"Failed to create playlist: name=%s lampCount=%d\n", meta._mName.c_str(), meta._mLampCount);
 			continue;
 		}
 
@@ -271,7 +280,7 @@ void SetAllDevicesToColors(
 		HRESULT hrStartMode = lampArrayEffectPlaylist->put_EffectStartMode(LampArrayEffectStartMode::LampArrayEffectStartMode_Simultaneous);
 		if (FAILED(hrStartMode))
 		{
-			fwprintf_s(stderr, L"Failed to set playlist start mode: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+			fwprintf_s(stderr, L"Failed to set playlist start mode: name=%s lampCount=%d\n", meta._mName.c_str(), meta._mLampCount);
 			continue;
 		}
 
@@ -281,10 +290,10 @@ void SetAllDevicesToColors(
 
 		// Create custom effect
 		ILampArrayCustomEffect* customEffect;
-		HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, &lampIndices[0], &customEffect);
+		HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, meta._mLampCount, &meta._mIndexes[0], &customEffect);
 		if (FAILED(hrCustomEffect))
 		{
-			fwprintf_s(stderr, L"Failed to create custom effect name=%s!\n", wName.c_str());
+			fwprintf_s(stderr, L"Failed to create custom effect name=%s!\n", meta._mName.c_str());
 			continue;
 		}
 
@@ -331,24 +340,24 @@ void SetAllDevicesToColors(
 		// Type define the event handler types to make the code more readable.
 		typedef ITypedEventHandler<LampArrayCustomEffect*, LampArrayUpdateRequestedEventArgs*> UpdateHandler;
 
-		HRESULT hrAddUpdate = customEffect->add_UpdateRequested(Callback<UpdateHandler>([lampArrayIndex, lampArrayEffectPlaylist, customEffect, lampCount, colorClear, colorRed, wName](ILampArrayCustomEffect* customEffect, ILampArrayUpdateRequestedEventArgs* args) -> HRESULT
+		HRESULT hrAddUpdate = customEffect->add_UpdateRequested(Callback<UpdateHandler>([meta, lampArrayIndex, lampArrayEffectPlaylist, customEffect, colorClear, colorRed](ILampArrayCustomEffect* customEffect, ILampArrayUpdateRequestedEventArgs* args) -> HRESULT
 			{
 				if (FAILED(args->SetColor(colorClear)))
 				{
-					fwprintf_s(stderr, L"Failed to set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+					fwprintf_s(stderr, L"Failed to set clear color: name=%s lampCount=%d\n", meta._mName.c_str(), meta._mLampCount);
 				}
-				//wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+				//wprintf_s(L"Set clear color: name=%s lampCount=%d\n", meta._mName.c_str(), meta._mLampCount);
 
-				for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+				for (INT32 lamp = 0; lamp < meta._mLampCount; ++lamp)
 				{
 					HRESULT hrSetColor = args->SetColorForIndex(lamp, colorRed);
 					if (FAILED(hrSetColor))
 					{
-						fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
+						fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", meta._mName.c_str(), lamp);
 					}
 					if (lamp == 0) // log just the first element per device
 					{
-						wprintf_s(L"Device %d: set red color: name=%s lamp=%d of %d\n", lampArrayIndex, wName.c_str(), lamp, lampCount);
+						wprintf_s(L"Device %d: set red color: name=%s lamp=%d of %d\n", lampArrayIndex, meta._mName.c_str(), lamp, meta._mLampCount);
 					}
 				}
 
@@ -357,7 +366,7 @@ void SetAllDevicesToColors(
 			}).Get(), &updatedToken);
 
 		if (FAILED(hrAddUpdate)) {
-			fwprintf_s(stderr, L"Failed to set UpdateRequested event: name=%s\n", wName.c_str());
+			fwprintf_s(stderr, L"Failed to set UpdateRequested event: name=%s\n", meta._mName.c_str());
 			continue;
 		}
 
@@ -368,10 +377,10 @@ void SetAllDevicesToColors(
 		HRESULT hrAppend = lampArrayEffectPlaylist->Append((ILampArrayEffect*)customEffect);
 		if (FAILED(hrAppend))
 		{
-			fwprintf_s(stderr, L"Failed to append to playlist: name=%s\n", wName.c_str());
+			fwprintf_s(stderr, L"Failed to append to playlist: name=%s\n", meta._mName.c_str());
 			continue;
 		}
-		wprintf_s(L"Appended to playlist: name=%s\n", wName.c_str());
+		wprintf_s(L"Appended to playlist: name=%s\n", meta._mName.c_str());
 
 #pragma endregion Append to playlist
 
@@ -380,10 +389,10 @@ void SetAllDevicesToColors(
 		HRESULT hrStart = lampArrayEffectPlaylist->Start();
 		if (FAILED(hrStart))
 		{
-			fwprintf_s(stderr, L"Failed to start playlist: name=%s\n", wName.c_str());
+			fwprintf_s(stderr, L"Failed to start playlist: name=%s\n", meta._mName.c_str());
 			continue;
 		}
-		wprintf_s(L"Started playlist: name=%s\n", wName.c_str());
+		wprintf_s(L"Started playlist: name=%s\n", meta._mName.c_str());
 
 #pragma endregion Start playlist
 
@@ -487,18 +496,19 @@ int main()
 			}
 			else
 			{
-				wstring wId = id.GetRawBuffer(nullptr);
+				MetaLampInfo meta;
+
+				meta._mId = id.GetRawBuffer(nullptr);
 
 				HString name;
-				wstring wName;
 				HRESULT hrGetName = deviceInformation->get_Name(name.GetAddressOf());
 				if (SUCCEEDED(hrGetName))
 				{
-					wName = name.GetRawBuffer(nullptr);
+					meta._mName = name.GetRawBuffer(nullptr);
 				}
 
-				_gIdNameMap[wId] = wName;
-				wprintf_s(L"Added device: id=%s name=%s\n", wId.c_str(), wName.c_str());
+				_gConnectedDevices[meta._mId] = meta;
+				wprintf_s(L"Added device: id=%s name=%s\n", meta._mId.c_str(), meta._mName.c_str());
 			}
 
 			return S_OK;
@@ -522,9 +532,9 @@ int main()
 			{
 				wstring wId = id.GetRawBuffer(nullptr);
 				wprintf_s(L"Removed device: %s\n", wId.c_str());
-				if (_gIdNameMap.find(wId) != _gIdNameMap.end())
+				if (_gConnectedDevices.find(wId) != _gConnectedDevices.end())
 				{
-					_gIdNameMap.erase(wId);
+					_gConnectedDevices.erase(wId);
 				}
 			}
 			return S_OK;
