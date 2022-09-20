@@ -35,6 +35,42 @@ using namespace winrt;
 
 map<wstring, wstring> _gIdNameMap;
 
+void GetDeviceInformation(ComPtr<IDeviceInformationStatics>& deviceInformationStatics,
+	const HString& id,
+	IDeviceInformation** deviceInformation)
+{
+	IAsyncOperation<DeviceInformation*>* operation;
+	deviceInformationStatics->CreateFromIdAsync(id, &operation);
+	task<void> task([operation, &deviceInformation]()
+		{
+			HRESULT hr;
+			do
+			{
+				WaitForSingleObjectEx(::GetCurrentThread(), 30, FALSE); //change to concurrency::wait()
+				hr = operation->GetResults(deviceInformation);
+			} while (FAILED(hr));
+		});
+	task.get();
+}
+
+void GetLampArray(ComPtr<ILampArrayStatics>& lampArrayStatics,
+	const HString& id,
+	ILampArray** lampArray)
+{
+	IAsyncOperation<LampArray*>* operation;
+	lampArrayStatics->FromIdAsync(id, &operation);
+	task<void> task([operation, &lampArray]()
+		{
+			HRESULT hr;
+			do
+			{
+				WaitForSingleObjectEx(::GetCurrentThread(), 30, FALSE); //change to concurrency::wait()
+				hr = operation->GetResults(lampArray);
+			} while (FAILED(hr));
+		});
+	task.get();
+}
+
 void SetAllDevicesToColors(
 	ComPtr<IDeviceInformationStatics> deviceInformationStatics,
 	ComPtr<ILampArrayStatics> lampArrayStatics,
@@ -59,43 +95,34 @@ void SetAllDevicesToColors(
 			continue;
 		}
 
-		// convert to await task
-		IAsyncOperation<DeviceInformation*>* opGetDeviceInformation;
-		deviceInformationStatics->CreateFromIdAsync(id, &opGetDeviceInformation);
+#pragma region Get DeviceInformation
+
 		IDeviceInformation* deviceInformation = nullptr;
-		while (true)
-		{
-			HRESULT hr = opGetDeviceInformation->GetResults(&deviceInformation);
-			if (SUCCEEDED(hr))
-			{
-				break;
-			}
-			Sleep(1);
-		}
+		GetDeviceInformation(deviceInformationStatics,
+			id,
+			&deviceInformation);
 
 		if (!deviceInformation)
 		{
 			continue;
 		}
 
+#pragma endregion Get DeviceInformation
+
+
 #pragma region Get LampArray
 
-		// convert to await task
-		IAsyncOperation<LampArray*>* opGetLampArray;
-		lampArrayStatics->FromIdAsync(id, &opGetLampArray);
 		ILampArray* lampArray = nullptr;
-		while (true)
-		{
-			HRESULT hrGetLamps = opGetLampArray->GetResults(&lampArray);
+		GetLampArray(lampArrayStatics,
+			id,
+			&lampArray);
 
-			if (SUCCEEDED(hrGetLamps))
-			{
-				break;
-			}
-			Sleep(1);
+		if (!lampArray)
+		{
+			continue;
 		}
 
-#pragma endregion Get LampArray
+#pragma endregion Get LampArray		
 
 		INT32 lampCount;
 		lampArray->get_LampCount(&lampCount);
