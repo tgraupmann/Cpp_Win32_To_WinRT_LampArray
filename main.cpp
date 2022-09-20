@@ -150,13 +150,64 @@ void SetAllDevicesToColors(
 			continue;
 		}
 
-#pragma endregion Get LampArray		
+#pragma endregion Get LampArray
+
+#pragma region Get lamp count
 
 		INT32 lampCount;
-		lampArray->get_LampCount(&lampCount);
+		if (FAILED(lampArray->get_LampCount(&lampCount)))
+		{
+			wprintf_s(L"Failed to get lamp count: name=%s id=%s\n",
+				wName.c_str(),
+				wId.c_str());
+			continue;
+		}
 
-		wprintf_s(L"Added device: name=%s lampCount=%d id=%s\n",
+#pragma endregion Get lamp count
+
+#pragma region Get min update interval
+
+		TimeSpan minUpdateInterval;
+		if (FAILED(lampArray->get_MinUpdateInterval(&minUpdateInterval)))
+		{
+			wprintf_s(L"Failed to get min update interval: name=%s id=%s\n",
+				wName.c_str(),
+				wId.c_str());
+			continue;
+		}
+
+#pragma endregion Get min update interval
+
+#pragma region Get connected
+
+		boolean isConnected;
+		if (FAILED(lampArray->get_IsConnected(&isConnected)))
+		{
+			wprintf_s(L"Failed to get isConnected: name=%s id=%s\n",
+				wName.c_str(),
+				wId.c_str());
+			continue;
+		}
+
+#pragma endregion Get connected
+
+#pragma region Get enabled
+
+		boolean isEnabled;
+		if (FAILED(lampArray->get_IsEnabled(&isEnabled)))
+		{
+			wprintf_s(L"Failed to get isEnabled: name=%s id=%s\n",
+				wName.c_str(),
+				wId.c_str());
+			continue;
+		}
+
+#pragma endregion Get enabled
+
+		wprintf_s(L"Added device: name=%s isEnabled=%s isConnected=%s lampCount=%d id=%s\n",
 			wName.c_str(),
+			isEnabled ? L"true" : L"false",
+			isConnected ? L"true" : L"false",
 			lampCount,
 			wId.c_str());
 
@@ -253,6 +304,15 @@ void SetAllDevicesToColors(
 
 #pragma region Set Effect Update Interval
 
+		/*
+		if (FAILED(customEffect->put_UpdateInterval(minUpdateInterval)))
+		{
+			fwprintf_s(stderr, L"Failed to set custom effect update interval !\n");
+			continue;
+		}
+		*/
+
+		// update slower for debugging
 		TimeSpan updateInterval;
 		// duration: A time period expressed in 100-nanosecond units.
 		updateInterval.Duration = std::chrono::milliseconds{ 1000 }.count() * 10000; // multiply by 10000 to get nanoseconds.
