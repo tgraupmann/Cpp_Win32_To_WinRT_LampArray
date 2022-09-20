@@ -2,6 +2,7 @@
 
 #include <Windows.Foundation.h>
 #include <windows.devices.lights.h>
+#include <windows.devices.lights.effects.h>
 #include <windows.devices.enumeration.h>
 #include <windows.ui.h>
 #include <wrl\wrappers\corewrappers.h>
@@ -10,6 +11,7 @@
 using namespace ABI::Windows::Foundation;
 using namespace ABI::Windows::Devices::Enumeration;
 using namespace ABI::Windows::Devices::Lights;
+using namespace ABI::Windows::Devices::Lights::Effects;
 using namespace ABI::Windows::UI;
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
@@ -48,6 +50,42 @@ bool StaticClassesWinRT::FindClassILampArrayStatics(ComPtr<ILampArrayStatics>& l
 	return true;
 
 #pragma endregion class ILampArrayStatics
+
+}
+
+bool StaticClassesWinRT::FindClassILampArrayEffectPlaylistStatics(ComPtr<ILampArrayEffectPlaylistStatics>& lampArrayEffectPlaylistStatics)
+{
+
+#pragma region class ILampArrayEffectPlaylistStatics
+
+	HRESULT hr = GetActivationFactory(HStringReference(RuntimeClass_Windows_Devices_Lights_Effects_LampArrayEffectPlaylist).Get(), &lampArrayEffectPlaylistStatics);
+	if (FAILED(hr))
+	{
+		fwprintf_s(stderr, L"Failed to get WinRT ILampArrayEffectPlaylistStatics class! Line: %d Result: %ld\n", __LINE__, hr);
+		return false;
+	}
+	//wprintf_s(L"WinRT ILampArrayEffectPlaylistStatics class found!\n");
+	return true;
+
+#pragma endregion class ILampArrayEffectPlaylistStatics
+
+}
+
+bool StaticClassesWinRT::FindClassILampArrayCustomEffectFactory(ComPtr<ILampArrayCustomEffectFactory>& lampArrayCustomEffectFactory)
+{
+
+#pragma region class ILampArrayCustomEffectFactory
+
+	HRESULT hr = GetActivationFactory(HStringReference(RuntimeClass_Windows_Devices_Lights_Effects_LampArrayCustomEffect).Get(), &lampArrayCustomEffectFactory);
+	if (FAILED(hr))
+	{
+		fwprintf_s(stderr, L"Failed to get WinRT ILampArrayCustomEffectFactory class! Line: %d Result: %ld\n", __LINE__, hr);
+		return false;
+	}
+	//wprintf_s(L"WinRT ILampArrayCustomEffectFactory class found!\n");
+	return true;
+
+#pragma endregion class ILampArrayCustomEffectFactory
 
 }
 

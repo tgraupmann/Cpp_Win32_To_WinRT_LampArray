@@ -5,6 +5,7 @@
 
 #include <Windows.Foundation.h>
 #include <windows.devices.lights.h>
+#include <windows.devices.lights.effects.h>
 #include <windows.devices.enumeration.h>
 #include <windows.ui.h>
 #include <wrl\wrappers\corewrappers.h>
@@ -21,6 +22,7 @@ using namespace ABI::Windows::Foundation;
 using namespace ABI::Windows::Foundation::Numerics;
 using namespace ABI::Windows::Devices::Enumeration;
 using namespace ABI::Windows::Devices::Lights;
+using namespace ABI::Windows::Devices::Lights::Effects;
 using namespace ABI::Windows::UI;
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
@@ -34,6 +36,7 @@ map<wstring, wstring> _gIdNameMap;
 void SetAllDevicesToColors(
 	ComPtr<IDeviceInformationStatics> deviceInformationStatics,
 	ComPtr<ILampArrayStatics> lampArrayStatics,
+	ComPtr<ILampArrayCustomEffectFactory> lampArrayCustomEffectFactory,
 	ComPtr<IColorHelperStatics> colorHelperStatics)
 {
 	INT32 index = 0;
@@ -114,6 +117,17 @@ void SetAllDevicesToColors(
 			{
 				wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
 
+				INT32* lampIndexes = new INT32[lampCount];
+				for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+				{
+					lampIndexes[lamp] = lamp;
+				}
+
+				ILampArrayCustomEffect* customEffect;				
+				HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, lampIndexes, &customEffect);
+
+				delete[lampCount] lampIndexes;
+
 				for (INT32 lamp = 0; lamp < lampCount; ++lamp)
 				{
 					ILampInfo* lampInfo;
@@ -136,7 +150,7 @@ void SetAllDevicesToColors(
 					}
 					else
 					{
-						wprintf_s(L"Set red color: name=%s lamp=%d\n", wName.c_str(), lamp);
+						//wprintf_s(L"Set red color: name=%s lamp=%d\n", wName.c_str(), lamp);
 					}
 				}
 			}
@@ -155,6 +169,7 @@ int main()
 	}
 	wprintf_s(L"WinRT initialzed!\n");
 
+
 	ComPtr<IDeviceInformationStatics> deviceInformationStatics;
 	if (!StaticClassesWinRT::FindClassIDeviceInformationStatics(deviceInformationStatics))
 	{
@@ -167,16 +182,24 @@ int main()
 		return -1;
 	}
 
+	ComPtr<ILampArrayCustomEffectFactory> lampArrayCustomEffectFactory;
+	if (!StaticClassesWinRT::FindClassILampArrayCustomEffectFactory(lampArrayCustomEffectFactory))
+	{
+		return -1;
+	}
+
 	ComPtr<IColorHelperStatics> colorHelperStatics;
 	if (!StaticClassesWinRT::FindClassIColorHelperStatics(colorHelperStatics))
 	{
 		return -1;
 	}
 
+	HRESULT hr;
+
 #pragma region Get Device Selector
 
 	HString deviceSelector;
-	HRESULT hr = lampArrayStatics->GetDeviceSelector(deviceSelector.GetAddressOf());
+	hr = lampArrayStatics->GetDeviceSelector(deviceSelector.GetAddressOf());
 	if (FAILED(hr))
 	{
 		fwprintf_s(stderr, L"Failed to get WinRT LampArray DeviceSelector! Line: %d Result: %ld\n", __LINE__, hr);
@@ -285,6 +308,7 @@ int main()
 	SetAllDevicesToColors(
 		deviceInformationStatics,
 		lampArrayStatics,
+		lampArrayCustomEffectFactory,
 		colorHelperStatics);
 
 	Sleep(5000); // wait for events before exiting
