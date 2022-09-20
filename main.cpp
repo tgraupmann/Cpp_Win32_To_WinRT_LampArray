@@ -42,14 +42,13 @@ void SetAllDevicesToColors(
 	ComPtr<ILampArrayEffectPlaylistStatics> lampArrayEffectPlaylistStatics,
 	ComPtr<IColorHelperStatics> colorHelperStatics)
 {
-	INT32 index = 0;
-	for (map<wstring, wstring>::iterator it = _gIdNameMap.begin(); it != _gIdNameMap.end(); ++it)
+	INT32 lampArrayIndex = 0;
+	for (map<wstring, wstring>::iterator it = _gIdNameMap.begin(); it != _gIdNameMap.end(); ++it, ++lampArrayIndex)
 	{
 		wstring wId = it->first;
 		wstring wName = it->second;
 
-		wprintf_s(L"Device %d id=%s name=%s...\n", index, wId.c_str(), wName.c_str());
-		++index;
+		wprintf_s(L"Device %d id=%s name=%s...\n", lampArrayIndex, wId.c_str(), wName.c_str());
 
 		hstring hId{ wId.c_str() };
 		HString id;
@@ -101,6 +100,12 @@ void SetAllDevicesToColors(
 		INT32 lampCount;
 		lampArray->get_LampCount(&lampCount);
 
+		INT32* lampIndexes = new INT32[lampCount];
+		for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+		{
+			lampIndexes[lamp] = lamp;
+		}
+
 		wprintf_s(L"Added device: name=%s lampCount=%d id=%s\n",
 			wName.c_str(),
 			lampCount,
@@ -129,114 +134,108 @@ void SetAllDevicesToColors(
 		if (!UtilClassesWinRT::ActivateInstanceILampArrayEffectPlaylist(lampArrayEffectPlaylist))
 		{
 			fwprintf_s(stderr, L"Failed to create playlist: name=%s lampCount=%d\n", wName.c_str(), lampCount);
-			continue;
 		}
 		else
 		{
 			lampArrayEffectPlaylist->put_EffectStartMode(LampArrayEffectStartMode::LampArrayEffectStartMode_Simultaneous);
-		}
 
 #pragma endregion Create Playlist
 
-		Color colorClear;
-		Color colorRed;
-		if (FAILED(colorHelperStatics->FromArgb(0, 0, 0, 0, &colorClear)) ||
-			FAILED(colorHelperStatics->FromArgb(255, 255, 0, 0, &colorRed)))
-		{
-			fwprintf_s(stderr, L"Failed to create color!\n");
-		}
-		else
-		{
-			INT32* lampIndexes = new INT32[lampCount];
-			for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+			Color colorClear;
+			Color colorRed;
+			if (FAILED(colorHelperStatics->FromArgb(0, 0, 0, 0, &colorClear)) ||
+				FAILED(colorHelperStatics->FromArgb(255, 255, 0, 0, &colorRed)))
 			{
-				lampIndexes[lamp] = lamp;
-			}
-
-			ILampArrayCustomEffect* customEffect;
-			HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, lampIndexes, &customEffect);
-			delete[lampCount] lampIndexes;
-			if (FAILED(hrCustomEffect))
-			{
-				fwprintf_s(stderr, L"Failed to create custom effect name=%s!\n", wName.c_str());
+				fwprintf_s(stderr, L"Failed to create color!\n");
 			}
 			else
 			{
-				TimeSpan duration;
-				duration.Duration = std::chrono::milliseconds{ 100 }.count();
-				if (FAILED(customEffect->put_Duration(duration)))
+				ILampArrayCustomEffect* customEffect;
+				HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, lampIndexes, &customEffect);
+				if (FAILED(hrCustomEffect))
 				{
-					fwprintf_s(stderr, L"Failed to set custom effect duration!\n");
+					fwprintf_s(stderr, L"Failed to create custom effect name=%s!\n", wName.c_str());
 				}
-
-				TimeSpan updateInterval;
-				// duration: A time period expressed in 100-nanosecond units.
-				updateInterval.Duration = std::chrono::milliseconds{ 100 }.count();
-				if (FAILED(customEffect->put_UpdateInterval(updateInterval)))
+				else
 				{
-					fwprintf_s(stderr, L"Failed to set custom effect update interval !\n");
-				}
-
-				EventRegistrationToken updatedToken;
-
-				// Type define the event handler types to make the code more readable.
-				typedef ITypedEventHandler<LampArrayCustomEffect*, LampArrayUpdateRequestedEventArgs*> UpdateHandler;
-
-				HRESULT hrAddUpdate = customEffect->add_UpdateRequested(Callback<UpdateHandler>([lampArrayEffectPlaylist, customEffect, lampCount, colorClear, colorRed, wName](ILampArrayCustomEffect* customEffect, ILampArrayUpdateRequestedEventArgs* args) -> HRESULT
+					TimeSpan effectDuration;
+					effectDuration.Duration = INT64_MAX; // Same as TimeSpan.MaxValue
+					if (FAILED(customEffect->put_Duration(effectDuration)))
 					{
-						/*
-						HRESULT hrSetColor = args->SetColor(colorClear);
-						if (FAILED(hrSetColor))
-						{
-							fwprintf_s(stderr, L"Failed to set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
-						}
-						else
-						{
-							//wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
-						}
-						*/
+						fwprintf_s(stderr, L"Failed to set custom effect duration!\n");
+					}
 
-						for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+					TimeSpan updateInterval;
+					// duration: A time period expressed in 100-nanosecond units.
+					updateInterval.Duration = std::chrono::milliseconds{ 1000 }.count() * 10000; // multiply by 10000 to get nanoseconds.
+					if (FAILED(customEffect->put_UpdateInterval(updateInterval)))
+					{
+						fwprintf_s(stderr, L"Failed to set custom effect update interval !\n");
+					}
+
+					EventRegistrationToken updatedToken;
+
+					// Type define the event handler types to make the code more readable.
+					typedef ITypedEventHandler<LampArrayCustomEffect*, LampArrayUpdateRequestedEventArgs*> UpdateHandler;
+
+					HRESULT hrAddUpdate = customEffect->add_UpdateRequested(Callback<UpdateHandler>([lampArrayIndex, lampArrayEffectPlaylist, customEffect, lampCount, colorClear, colorRed, wName](ILampArrayCustomEffect* customEffect, ILampArrayUpdateRequestedEventArgs* args) -> HRESULT
 						{
-							HRESULT hrSetColor = args->SetColorForIndex(lamp, colorRed);
+							/*
+							HRESULT hrSetColor = args->SetColor(colorClear);
 							if (FAILED(hrSetColor))
 							{
-								fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
+								fwprintf_s(stderr, L"Failed to set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
 							}
 							else
 							{
-								if (lamp == 0)
+								//wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+							}
+							*/
+
+							for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+							{
+								HRESULT hrSetColor = args->SetColorForIndex(lamp, colorRed);
+								if (FAILED(hrSetColor))
 								{
-									wprintf_s(L"Set red color: name=%s lamp=%d\n", wName.c_str(), lamp);
+									fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
+								}
+								else
+								{
+									if (lamp == 0)
+									{
+										wprintf_s(L"Device %d: set red color: name=%s lamp=%d of %d\n", lampArrayIndex, wName.c_str(), lamp, lampCount);
+									}
 								}
 							}
-						}
 
-						return S_OK;
+							return S_OK;
 
-					}).Get(), &updatedToken);
-			}
+						}).Get(), &updatedToken);
+				}
 
-			HRESULT hrAppend = lampArrayEffectPlaylist->Append((ILampArrayEffect*)customEffect);
-			if (FAILED(hrAppend))
-			{
-				fwprintf_s(stderr, L"Failed to append to playlist: name=%s\n", wName.c_str());
-			}
-			else
-			{
-				wprintf_s(L"Appended to playlist: name=%s\n", wName.c_str());
-			}
+				HRESULT hrAppend = lampArrayEffectPlaylist->Append((ILampArrayEffect*)customEffect);
+				if (FAILED(hrAppend))
+				{
+					fwprintf_s(stderr, L"Failed to append to playlist: name=%s\n", wName.c_str());
+				}
+				else
+				{
+					wprintf_s(L"Appended to playlist: name=%s\n", wName.c_str());
+				}
 
-			HRESULT hrStart = lampArrayEffectPlaylist->Start();
-			if (FAILED(hrStart))
-			{
-				fwprintf_s(stderr, L"Failed to start playlist: name=%s\n", wName.c_str());
-			}
-			else
-			{
-				wprintf_s(L"Started playlist: name=%s\n", wName.c_str());
+				HRESULT hrStart = lampArrayEffectPlaylist->Start();
+				if (FAILED(hrStart))
+				{
+					fwprintf_s(stderr, L"Failed to start playlist: name=%s\n", wName.c_str());
+				}
+				else
+				{
+					wprintf_s(L"Started playlist: name=%s\n", wName.c_str());
+				}
 			}
 		}
+
+		delete[lampCount] lampIndexes;
 	}
 }
 
