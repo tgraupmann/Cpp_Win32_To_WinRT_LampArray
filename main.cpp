@@ -78,6 +78,27 @@ void SetAllDevicesToColors(
 	ComPtr<ILampArrayEffectPlaylistStatics> lampArrayEffectPlaylistStatics,
 	ComPtr<IColorHelperStatics> colorHelperStatics)
 {
+
+#pragma region Create colors
+
+	Color colorClear;
+	if (FAILED(colorHelperStatics->FromArgb(0, 0, 0, 0, &colorClear)))
+	{
+		fwprintf_s(stderr, L"Failed to create clear color!\n");
+		return;
+	}
+
+	Color colorRed;
+	if (FAILED(colorHelperStatics->FromArgb(255, 255, 0, 0, &colorRed)))
+	{
+		fwprintf_s(stderr, L"Failed to create red color!\n");
+		return;
+	}
+
+#pragma endregion Create colors
+
+	// loop through all the connected lighting devices
+
 	INT32 lampArrayIndex = 0;
 	for (map<wstring, wstring>::iterator it = _gIdNameMap.begin(); it != _gIdNameMap.end(); ++it, ++lampArrayIndex)
 	{
@@ -165,117 +186,140 @@ void SetAllDevicesToColors(
 		if (!UtilClassesWinRT::ActivateInstanceILampArrayEffectPlaylist(lampArrayEffectPlaylist))
 		{
 			fwprintf_s(stderr, L"Failed to create playlist: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+			continue;
 		}
-		else
-		{
-			lampArrayEffectPlaylist->put_EffectStartMode(LampArrayEffectStartMode::LampArrayEffectStartMode_Simultaneous);
 
 #pragma endregion Create Playlist
 
-			Color colorClear;
-			Color colorRed;
-			if (FAILED(colorHelperStatics->FromArgb(0, 0, 0, 0, &colorClear)) ||
-				FAILED(colorHelperStatics->FromArgb(255, 255, 0, 0, &colorRed)))
-			{
-				fwprintf_s(stderr, L"Failed to create colors!\n");
-			}
-			else
-			{
-				ILampArrayCustomEffect* customEffect;
-				HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, &lampIndices[0], &customEffect);
-				if (FAILED(hrCustomEffect))
-				{
-					fwprintf_s(stderr, L"Failed to create custom effect name=%s!\n", wName.c_str());
-				}
-				else
-				{
-					TimeSpan effectDuration;
-					effectDuration.Duration = INT64_MAX; // Same as TimeSpan.MaxValue
-					if (FAILED(customEffect->put_Duration(effectDuration)))
-					{
-						fwprintf_s(stderr, L"Failed to set custom effect duration!\n");
-					}
+#pragma region Set Playlist start mode
 
-					TimeSpan updateInterval;
-					// duration: A time period expressed in 100-nanosecond units.
-					updateInterval.Duration = std::chrono::milliseconds{ 1000 }.count() * 10000; // multiply by 10000 to get nanoseconds.
-					if (FAILED(customEffect->put_UpdateInterval(updateInterval)))
-					{
-						fwprintf_s(stderr, L"Failed to set custom effect update interval !\n");
-					}
-
-					EventRegistrationToken updatedToken;
-
-					// Type define the event handler types to make the code more readable.
-					typedef ITypedEventHandler<LampArrayCustomEffect*, LampArrayUpdateRequestedEventArgs*> UpdateHandler;
-
-					HRESULT hrAddUpdate = customEffect->add_UpdateRequested(Callback<UpdateHandler>([lampArrayIndex, lampArrayEffectPlaylist, customEffect, lampCount, colorClear, colorRed, wName](ILampArrayCustomEffect* customEffect, ILampArrayUpdateRequestedEventArgs* args) -> HRESULT
-						{
-							/*
-							HRESULT hrSetColor = args->SetColor(colorClear);
-							if (FAILED(hrSetColor))
-							{
-								fwprintf_s(stderr, L"Failed to set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
-							}
-							else
-							{
-								//wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
-							}
-							*/
-
-							for (INT32 lamp = 0; lamp < lampCount; ++lamp)
-							{
-								HRESULT hrSetColor = args->SetColorForIndex(lamp, colorRed);
-								if (FAILED(hrSetColor))
-								{
-									fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
-								}
-								else
-								{
-									if (lamp == 0)
-									{
-										wprintf_s(L"Device %d: set red color: name=%s lamp=%d of %d\n", lampArrayIndex, wName.c_str(), lamp, lampCount);
-									}
-								}
-							}
-
-							return S_OK;
-
-						}).Get(), &updatedToken);
-
-					if (FAILED(hrAddUpdate)) {
-						fwprintf_s(stderr, L"Failed to set UpdateRequested event: name=%s\n", wName.c_str());
-					}
-
-				}
-
-				HRESULT hrAppend = lampArrayEffectPlaylist->Append((ILampArrayEffect*)customEffect);
-				if (FAILED(hrAppend))
-				{
-					fwprintf_s(stderr, L"Failed to append to playlist: name=%s\n", wName.c_str());
-				}
-				else
-				{
-					wprintf_s(L"Appended to playlist: name=%s\n", wName.c_str());
-				}
-
-				HRESULT hrStart = lampArrayEffectPlaylist->Start();
-				if (FAILED(hrStart))
-				{
-					fwprintf_s(stderr, L"Failed to start playlist: name=%s\n", wName.c_str());
-				}
-				else
-				{
-					wprintf_s(L"Started playlist: name=%s\n", wName.c_str());
-				}
-			}
+		HRESULT hrStartMode = lampArrayEffectPlaylist->put_EffectStartMode(LampArrayEffectStartMode::LampArrayEffectStartMode_Simultaneous);
+		if (FAILED(hrStartMode))
+		{
+			fwprintf_s(stderr, L"Failed to set playlist start mode: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+			continue;
 		}
+
+#pragma endregion Set Playlist start mode
+
+#pragma region Create Custom Effect
+
+		// Create custom effect
+		ILampArrayCustomEffect* customEffect;
+		HRESULT hrCustomEffect = lampArrayCustomEffectFactory->CreateInstance(lampArray, lampCount, &lampIndices[0], &customEffect);
+		if (FAILED(hrCustomEffect))
+		{
+			fwprintf_s(stderr, L"Failed to create custom effect name=%s!\n", wName.c_str());
+			continue;
+		}
+
+#pragma endregion Create Custom Effect
+
+#pragma region Set Effect Duration
+
+		TimeSpan effectDuration;
+		effectDuration.Duration = INT64_MAX; // Same as TimeSpan.MaxValue
+		if (FAILED(customEffect->put_Duration(effectDuration)))
+		{
+			fwprintf_s(stderr, L"Failed to set custom effect duration!\n");
+			continue;
+		}
+
+#pragma endregion Set Effect Duration
+
+#pragma region Set Effect Update Interval
+
+		TimeSpan updateInterval;
+		// duration: A time period expressed in 100-nanosecond units.
+		updateInterval.Duration = std::chrono::milliseconds{ 1000 }.count() * 10000; // multiply by 10000 to get nanoseconds.
+		if (FAILED(customEffect->put_UpdateInterval(updateInterval)))
+		{
+			fwprintf_s(stderr, L"Failed to set custom effect update interval !\n");
+			continue;
+		}
+
+#pragma endregion Set Effect Update Interval
+
+#pragma region Assign UpdateRequested event
+
+		EventRegistrationToken updatedToken;
+
+		// Type define the event handler types to make the code more readable.
+		typedef ITypedEventHandler<LampArrayCustomEffect*, LampArrayUpdateRequestedEventArgs*> UpdateHandler;
+
+		HRESULT hrAddUpdate = customEffect->add_UpdateRequested(Callback<UpdateHandler>([lampArrayIndex, lampArrayEffectPlaylist, customEffect, lampCount, colorClear, colorRed, wName](ILampArrayCustomEffect* customEffect, ILampArrayUpdateRequestedEventArgs* args) -> HRESULT
+			{
+				/*
+				HRESULT hrSetColor = args->SetColor(colorClear);
+				if (FAILED(hrSetColor))
+				{
+					fwprintf_s(stderr, L"Failed to set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+				}
+				else
+				{
+					//wprintf_s(L"Set clear color: name=%s lampCount=%d\n", wName.c_str(), lampCount);
+				}
+				*/
+
+				for (INT32 lamp = 0; lamp < lampCount; ++lamp)
+				{
+					HRESULT hrSetColor = args->SetColorForIndex(lamp, colorRed);
+					if (FAILED(hrSetColor))
+					{
+						fwprintf_s(stderr, L"Failed to set color: name=%s lamp=%d\n", wName.c_str(), lamp);
+					}
+					else
+					{
+						if (lamp == 0)
+						{
+							wprintf_s(L"Device %d: set red color: name=%s lamp=%d of %d\n", lampArrayIndex, wName.c_str(), lamp, lampCount);
+						}
+					}
+				}
+
+				return S_OK;
+
+			}).Get(), &updatedToken);
+
+		if (FAILED(hrAddUpdate)) {
+			fwprintf_s(stderr, L"Failed to set UpdateRequested event: name=%s\n", wName.c_str());
+			continue;
+		}
+
+#pragma endregion Assign UpdateRequested event
+
+#pragma region Append to playlist
+
+		HRESULT hrAppend = lampArrayEffectPlaylist->Append((ILampArrayEffect*)customEffect);
+		if (FAILED(hrAppend))
+		{
+			fwprintf_s(stderr, L"Failed to append to playlist: name=%s\n", wName.c_str());
+			continue;
+		}
+		wprintf_s(L"Appended to playlist: name=%s\n", wName.c_str());
+
+#pragma endregion Append to playlist
+
+#pragma region Start playlist
+
+		HRESULT hrStart = lampArrayEffectPlaylist->Start();
+		if (FAILED(hrStart))
+		{
+			fwprintf_s(stderr, L"Failed to start playlist: name=%s\n", wName.c_str());
+			continue;
+		}
+		wprintf_s(L"Started playlist: name=%s\n", wName.c_str());
+
+#pragma endregion Start playlist
+
 	}
 }
 
 int main()
 {
-	// Initialize the Windows Runtime.
+
+#pragma region Initialize WinRT
+
 	RoInitializeWrapper initialize(RO_INIT_MULTITHREADED);
 	if (FAILED(initialize))
 	{
@@ -284,6 +328,9 @@ int main()
 	}
 	wprintf_s(L"WinRT initialzed!\n");
 
+#pragma endregion Initialize WinRT
+
+#pragma region Get WinRT classes
 
 	ComPtr<IDeviceInformationStatics> deviceInformationStatics;
 	if (!UtilClassesWinRT::FindClassIDeviceInformationStatics(deviceInformationStatics))
@@ -314,6 +361,8 @@ int main()
 	{
 		return -1;
 	}
+
+#pragma endregion Get WinRT classes
 
 	HRESULT hr;
 
@@ -423,9 +472,11 @@ int main()
 
 #pragma endregion Start Device Watcher
 
-	Sleep(100); // wait to set colors
+	// wait to detect connected devices
+	Sleep(100);
 	wprintf(L"Waited for devices.\n");
 
+	// Set all detected lighting devices to a color
 	SetAllDevicesToColors(
 		deviceInformationStatics,
 		lampArrayStatics,
@@ -433,7 +484,8 @@ int main()
 		lampArrayEffectPlaylistStatics,
 		colorHelperStatics);
 
-	Sleep(5000); // wait for events before exiting
+	// wait for events before exiting
+	Sleep(5000);
 
 	return 0;
 }
