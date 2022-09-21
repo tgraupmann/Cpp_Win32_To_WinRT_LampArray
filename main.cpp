@@ -33,6 +33,27 @@ using namespace winrt;
 
 #pragma comment(lib, "windowsapp")
 
+HWND                                 g_hwnd = nullptr;
+HINSTANCE                            g_hInstance = nullptr;
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		break;
+
+	case WM_TIMER:
+		PostMessage(hWnd, WM_QUIT, 0, 0);
+
+	}
+
+	return DefWindowProc(hWnd, message, wParam, lParam);
+
+}
+
+
 class MetaLampInfo
 {
 public:
@@ -284,6 +305,7 @@ void SetAllDevicesToColors(
 			continue;
 		}
 
+
 #pragma endregion Set Playlist start mode
 
 #pragma region Create Custom Effect
@@ -401,6 +423,42 @@ void SetAllDevicesToColors(
 
 int main()
 {
+
+	g_hInstance = GetModuleHandle(nullptr);
+
+	WNDCLASSEXW wcex = {};
+
+	wcex.cbSize = sizeof(WNDCLASSEX);
+
+	wcex.style = CS_HREDRAW | CS_VREDRAW;
+	wcex.lpfnWndProc = WndProc;
+	wcex.cbClsExtra = 0;
+	wcex.cbWndExtra = 0;
+	wcex.hInstance = g_hInstance;
+	wcex.hIcon = nullptr;
+	wcex.hCursor = nullptr; //LoadCursor(nullptr, IDC_ARROW);
+	wcex.hbrBackground = nullptr;
+	wcex.lpszMenuName = nullptr;
+	wcex.lpszClassName = L"lampwindow";
+	wcex.hIconSm = nullptr;
+
+	if (!RegisterClassExW(&wcex))
+	{
+		fwprintf_s(stderr, L"Failed to create window class: %ld\n", __LINE__);
+		return -1;
+	}
+
+	g_hwnd = CreateWindowExW(0, L"lampwindow", L"lampwindow", WS_OVERLAPPEDWINDOW,
+		100, 0, 100, 0, nullptr, nullptr, g_hInstance, nullptr);
+
+	if (g_hwnd == nullptr)
+	{
+		fwprintf_s(stderr, L"Failed to create window: %ld\n", __LINE__);
+		return -1;
+	}
+
+	ShowWindow(g_hwnd, SW_SHOW);
+	UpdateWindow(g_hwnd);
 
 #pragma region Initialize WinRT
 
@@ -569,8 +627,16 @@ int main()
 		lampArrayEffectPlaylistStatics,
 		colorHelperStatics);
 
-	// wait for events before exiting
-	Sleep(5000);
+	MSG msg;
+
+	SetTimer(g_hwnd, 1, 5000, nullptr);
+
+	// Main message loop:
+	while (GetMessage(&msg, nullptr, 0, 0))
+	{
+		DispatchMessage(&msg);
+	}
+
 
 	return 0;
 }
