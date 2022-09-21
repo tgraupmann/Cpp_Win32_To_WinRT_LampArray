@@ -33,26 +33,12 @@ using namespace winrt;
 
 #pragma comment(lib, "windowsapp")
 
-HWND                                 g_hwnd = nullptr;
-HINSTANCE                            g_hInstance = nullptr;
+#pragma region Foreground window variables
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	switch (message)
-	{
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		break;
+HWND _gHwnd = nullptr;
+HINSTANCE _gHInstance = nullptr;
 
-	case WM_TIMER:
-		PostMessage(hWnd, WM_QUIT, 0, 0);
-
-	}
-
-	return DefWindowProc(hWnd, message, wParam, lParam);
-
-}
-
+#pragma endregion Foreground window variables
 
 class MetaLampInfo
 {
@@ -421,44 +407,20 @@ void SetAllDevicesToColors(
 	}
 }
 
+int CreateForegroundWindow();
+
 int main()
 {
 
-	g_hInstance = GetModuleHandle(nullptr);
+#pragma region Create a foreground window when focused LampArray will be allowed to control hardware
 
-	WNDCLASSEXW wcex = {};
-
-	wcex.cbSize = sizeof(WNDCLASSEX);
-
-	wcex.style = CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc = WndProc;
-	wcex.cbClsExtra = 0;
-	wcex.cbWndExtra = 0;
-	wcex.hInstance = g_hInstance;
-	wcex.hIcon = nullptr;
-	wcex.hCursor = nullptr; //LoadCursor(nullptr, IDC_ARROW);
-	wcex.hbrBackground = nullptr;
-	wcex.lpszMenuName = nullptr;
-	wcex.lpszClassName = L"lampwindow";
-	wcex.hIconSm = nullptr;
-
-	if (!RegisterClassExW(&wcex))
+	if (CreateForegroundWindow() != 0)
 	{
-		fwprintf_s(stderr, L"Failed to create window class: %ld\n", __LINE__);
 		return -1;
 	}
 
-	g_hwnd = CreateWindowExW(0, L"lampwindow", L"lampwindow", WS_OVERLAPPEDWINDOW,
-		100, 0, 100, 0, nullptr, nullptr, g_hInstance, nullptr);
-
-	if (g_hwnd == nullptr)
-	{
-		fwprintf_s(stderr, L"Failed to create window: %ld\n", __LINE__);
-		return -1;
-	}
-
-	ShowWindow(g_hwnd, SW_SHOW);
-	UpdateWindow(g_hwnd);
+#pragma endregion Create a foreground window when focused LampArray will be allowed to control hardware
+	
 
 #pragma region Initialize WinRT
 
@@ -627,16 +589,76 @@ int main()
 		lampArrayEffectPlaylistStatics,
 		colorHelperStatics);
 
-	MSG msg;
-
-	SetTimer(g_hwnd, 1, 5000, nullptr);
+	wprintf(L"Press Esc on the foreground window to exit.\n");
 
 	// Main message loop:
+	MSG msg;
 	while (GetMessage(&msg, nullptr, 0, 0))
 	{
+		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
 
+	return 0;
+}
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_CHAR: //this is just for a program exit besides window's borders/task bar
+		if (wParam == VK_ESCAPE)
+		{
+			DestroyWindow(_gHwnd);
+		}
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		break;
+	}
+
+	return DefWindowProc(hWnd, message, wParam, lParam);
+
+}
+
+int CreateForegroundWindow()
+{
+	_gHInstance = GetModuleHandle(nullptr);
+
+	LPCWSTR title = L"Lamp Window";
+
+	WNDCLASSEXW wcex = {};
+
+	wcex.cbSize = sizeof(WNDCLASSEX);
+
+	wcex.style = CS_HREDRAW | CS_VREDRAW;
+	wcex.lpfnWndProc = WndProc;
+	wcex.cbClsExtra = 0;
+	wcex.cbWndExtra = 0;
+	wcex.hInstance = _gHInstance;
+	wcex.hIcon = nullptr;
+	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	wcex.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);;
+	wcex.lpszMenuName = nullptr;
+	wcex.lpszClassName = title;
+	wcex.hIconSm = nullptr;
+
+	if (!RegisterClassExW(&wcex))
+	{
+		fwprintf_s(stderr, L"Failed to create window class: %ld\n", __LINE__);
+		return -1;
+	}
+
+	_gHwnd = CreateWindowExW(0, title, title, WS_OVERLAPPEDWINDOW,
+		0, 0, 300, 200, nullptr, nullptr, _gHInstance, nullptr);
+
+	if (_gHwnd == nullptr)
+	{
+		fwprintf_s(stderr, L"Failed to create window: %ld\n", __LINE__);
+		return -1;
+	}
+
+	ShowWindow(_gHwnd, SW_SHOW);
+	UpdateWindow(_gHwnd);
 
 	return 0;
 }
